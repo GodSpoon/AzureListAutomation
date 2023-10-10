@@ -44,7 +44,7 @@ d. Functions
 - Ensure functions, especially those interacting with Microsoft Graph, are modular and documented.
 - Use CLI for Microsoft 365 commands for Microsoft 365 service interactions, where possible.
 
-3. Documentation
+e. Documentation
 
 - Updated README.md
    -  Document the purpose of each script, order of execution, prerequisites, and assumptions.
@@ -53,7 +53,7 @@ d. Functions
 - In-Script Documentation
    - Include comments explaining the purpose, input parameters, and expected output of each script.
 
-4. Integration with CLI for Microsoft 365
+f. Integration with CLI for Microsoft 365
 
 - Replace PowerShell logic with CLI for Microsoft 365 commands for interactions with Microsoft 365 services.
 
