@@ -1,6 +1,6 @@
-# An Attempt at a Template of MozzieMozz's "Teams Phone Automation"
+## An Attempt at a Template of MozzieMozz's "Teams Phone Automation"
 
-## Intended for Creating Similar Automations in a Similar Fashion
+Intended for Creating Similar Automations in a Similar Fashion
 
 Original Author: Martin Heusser | M365 Apps & Services MVP
 
