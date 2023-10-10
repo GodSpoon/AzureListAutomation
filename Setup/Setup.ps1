@@ -1,28 +1,20 @@
 $banner = @"
- ______   ______     ______     __    __     ______        __   __     __  __     __    __     ______     ______     ______        __         __     ______     ______  
-/\__  _\ /\  ___\   /\  __ \   /\ "-./  \   /\  ___\      /\ "-.\ \   /\ \/\ \   /\ "-./  \   /\  == \   /\  ___\   /\  == \      /\ \       /\ \   /\  ___\   /\__  _\ 
-\/_/\ \/ \ \  __\   \ \  __ \  \ \ \-./\ \  \ \___  \     \ \ \-.  \  \ \ \_\ \  \ \ \-./\ \  \ \  __<   \ \  __\   \ \  __<      \ \ \____  \ \ \  \ \___  \  \/_/\ \/ 
-   \ \_\  \ \_____\  \ \_\ \_\  \ \_\ \ \_\  \/\_____\     \ \_\\"\_\  \ \_____\  \ \_\ \ \_\  \ \_____\  \ \_____\  \ \_\ \_\     \ \_____\  \ \_\  \/\_____\    \ \_\ 
-    \/_/   \/_____/   \/_/\/_/   \/_/  \/_/   \/_____/      \/_/ \/_/   \/_____/   \/_/  \/_/   \/_____/   \/_____/   \/_/ /_/      \/_____/   \/_/   \/_____/     \/_/ 
-                                                                                                                                                                        
+     _                            _     _     _         _         _                        _   _             
+    / \    _____   _ _ __ ___    | |   (_)___| |_      / \  _   _| |_ ___  _ __ ___   __ _| |_(_) ___  _ __  
+   / _ \  |_  / | | | '__/ _ \   | |   | / __| __|    / _ \| | | | __/ _ \| '_ ` _ \ / _` | __| |/ _ \| '_ \ 
+  / ___ \  / /| |_| | | |  __/   | |___| \__ \ |_    / ___ \ |_| | || (_) | | | | | | (_| | |_| | (_) | | | |
+ /_/   \_\/___|\__,_|_|  \___|   |_____|_|___/\__|  /_/   \_\__,_|\__\___/|_| |_| |_|\__,_|\__|_|\___/|_| |_|
+                                                                                                                                                                                                                                                                                                                                                                                      
 "@
-
 Write-Host $banner -ForegroundColor DarkCyan
-
 Write-Host "Press enter to start the deployment." -ForegroundColor Cyan
 Read-Host
-
 if (!(Test-Path -Path .\.local)) {
-
     New-Item -Path .\.local -ItemType Directory
-
 }
-
 $repoPath = Get-Content -Path C:\Temp\RepoPath.txt
-
 Set-Location -Path $repoPath
-
-# Import functions
+#region ### Import functions and Environment.json Variables ###
 . .\Functions\Connect-MgGraphHTTP.ps1
 
 $newEnvironment = Get-Content .\Resources\Environment.json | ConvertFrom-Json
@@ -33,11 +25,13 @@ $resourceGroupName = $newEnvironment.ResourceGroupName
 $azLocation = $newEnvironment.AzLocation
 $groupId = $newEnvironment.GroupId
 $MsListName = $newEnvironment.MSListName
+#$Runbook = $newEnvironment.Runbook
 
 $scheduledRunbookTags = @{"Service"="Microsoft Teams";"RunbookType"="Scheduled"}
 $functionRunbookTags = @{"Service"="Azure Automation";"RunbookType"="Function"}
 $resourceGroupTags = @{"Service"="Azure Automation"}
-
+#endregion
+#region ### Install Modules, Node.JS and cli-microsoft365 ###
 $installedModules = Get-InstalledModule
 
 $requiredModules = @(
@@ -210,8 +204,8 @@ else {
 
 }
 
-
-# Login to npx m365 CLI
+#endregion
+#region ### Login to npx m365 CLI, create app & secret ###
 npx m365 login
 
 $AADAppRegistrationName = "$automationAccountName" + "_AAD_SP"
@@ -257,6 +251,8 @@ Set-Content -Path .\.local\AppId.txt -Value $newAppId.TrimEnd() -Force
 Write-Host "Adding the required Microsoft Graph permissions to $AADAppRegistrationName..." -ForegroundColor Cyan
 
 $newAADServicePrincipalObjectId = ((npx m365 aad sp add --appId $newAppId | ConvertFrom-Json).Id).TrimEnd()
+
+# Assign App Role Assignments
 
 npx m365 aad approleassignment add --resource "Microsoft Graph" --scope "Organization.Read.All" --appId $newAppId
 npx m365 aad approleassignment add --resource "Microsoft Graph" --scope "User.ReadWrite.All" --appId $newAppId
@@ -322,8 +318,9 @@ New-AzAutomationAccount -Name $automationAccountName -Location $azLocation -Reso
 
 $installedTeamsPSVersion = (Get-InstalledModule -Name MicrosoftTeams).Version -join ""
 
-# Install MicrosoftTeams PowerShell Module in Automation Account
+# Install PowerShell Modules in Automation Account
 New-AzAutomationModule -AutomationAccountName $automationAccountName -Name "MicrosoftTeams" -ContentLink "https://psg-prod-eastus.azureedge.net/packages/microsoftteams.$installedTeamsPSVersion.nupkg" -ResourceGroupName $resourceGroupName
+New-AzAutomationModule -AutomationAccountName $automationAccountName -Name "AzureAD" -ContentLink "https://psg-prod-eastus.azureedge.net/packages/microsoftteams.$installedTeamsPSVersion.nupkg" -ResourceGroupName $resourceGroupName
 
 do {
 
@@ -340,26 +337,14 @@ do {
 
 # Upload variables
 
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_AppId" -Encrypted $false -Value $AppId -ResourceGroupName $resourceGroupName
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_AppSecret" -Encrypted $true -Value $AppSecret -ResourceGroupName $resourceGroupName
+New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "App_AppId" -Encrypted $false -Value $AppId -ResourceGroupName $resourceGroupName
+New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "App_Secret" -Encrypted $true -Value $AppSecret -ResourceGroupName $resourceGroupName
 
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_GroupId" -Encrypted $false -Value $groupId -ResourceGroupName $resourceGroupName
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_TenantId" -Encrypted $false -Value $tenantId -ResourceGroupName $resourceGroupName
-
-# Upload Country Lookup Table
-$countryLookupTable = "'" + (Get-Content -Path .\Resources\CountryLookupTable.json | Out-String) + "'"
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_CountryLookupTable" -Encrypted $false -Value $countryLookupTable -ResourceGroupName $resourceGroupName
-
-# Upload Country Lookup Table
-$createListJson = "'" + (Get-Content -Path .\Resources\CreateList.json | Out-String) + "'"
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_CreateList" -Encrypted $false -Value $createListJson -ResourceGroupName $resourceGroupName
-
-# Upload alldirectroutingnumbers
-$directRoutingNumbers = "'" + (Import-Csv -Path .\Resources\DirectRoutingNumbers.csv | ConvertTo-Json | Out-String) + "'"
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_DirectRoutingNumbers" -Encrypted $false -Value $directRoutingNumbers -ResourceGroupName $resourceGroupName
+New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "App_GroupId" -Encrypted $false -Value $groupId -ResourceGroupName $resourceGroupName
+New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "App_TenantId" -Encrypted $false -Value $tenantId -ResourceGroupName $resourceGroupName
 
 # Upload MS List name
-New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "TeamsPhoneNumberOverview_MsListName" -Encrypted $false -Value $MsListName -ResourceGroupName $resourceGroupName
+New-AzAutomationVariable -AutomationAccountName $automationAccountName -Name "App_MsListName" -Encrypted $false -Value $MsListName -ResourceGroupName $resourceGroupName
 
 # Upload function runbooks
 
@@ -373,7 +358,7 @@ foreach ($functionRunbook in $functionRunbooks) {
 
 # Upload main runbook
 
-$mainRunbook = Get-ChildItem -Path .\Scripts\TeamsPhoneNumberOverview.ps1
+$mainRunbook = Get-ChildItem -Path .\Resources\Runbook.ps1
 
 $newRunbook = Import-AzAutomationRunbook -Path $mainRunbook.FullName -Tags $scheduledRunbookTags -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -Type PowerShell -Name $($mainRunbook.Name.Replace(".ps1","")) -Published
 
@@ -385,8 +370,7 @@ $startTime = (Get-Date "$($nextFullHour):00:00").ToUniversalTime().AddHours(2)
 $newSchedule = New-AzAutomationSchedule -AutomationAccountName $automationAccountName -Name $functionRunbook.Name.Replace(".ps1","") -StartTime $StartTime -HourInterval 1 -ResourceGroupName $resourceGroupName -TimeZone "Etc/UTC"
 
 Register-AzAutomationScheduledRunbook -RunbookName $newRunbook.Name -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -ScheduleName $newSchedule.Name
-
+#endregion
 Remove-Item -Path C:\Temp\RepoPath.txt
-
 Write-Host "Finished provisioning Azure Automation Account! Press enter to exit." -ForegroundColor Cyan
 Read-Host
